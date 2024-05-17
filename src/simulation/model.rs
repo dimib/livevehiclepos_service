@@ -1,15 +1,24 @@
 use serde::{Serialize, Deserialize};
-use std::fs::File;
-use std::io::{BufReader};
 
 #[derive(Debug, Serialize, Deserialize)]
-pub struct vehicle_position_file {
-    pub coords: Vec<vehicle_position>,
+pub struct VehiclePositionFile {
+    pub coords: Vec<VehiclePosition>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
-pub struct vehicle_position {
+pub struct VehiclePosition {
     pub time: String,
     pub lat: f64, 
     pub lon: f64,
 }
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct VehicleIdMappingFile {
+    pub vehicle_id_mapping: Vec<RealVehicleToSimVehicle>,
+}
+#[derive(Debug, Serialize, Deserialize)]
+pub struct RealVehicleToSimVehicle {
+    pub real_vehicle_ids: String,
+    pub sim_vehicle_id: String,
+}
+
