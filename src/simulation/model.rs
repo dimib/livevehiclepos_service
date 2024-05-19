@@ -13,12 +13,22 @@ pub struct VehiclePosition {
 }
 
 #[derive(Debug, Serialize, Deserialize)]
-pub struct VehicleIdMappingFile {
+pub struct VehicleSimualationFile {
+    pub vehicle_simulations: Vec<VehicleSimulation>,
     pub vehicle_id_mapping: Vec<RealVehicleToSimVehicle>,
 }
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct VehicleSimulation {
+    pub vehicle_id: String,
+    pub pos_file: String,
+    pub step: usize,
+}
+
 #[derive(Debug, Serialize, Deserialize)]
 pub struct RealVehicleToSimVehicle {
     pub real_vehicle_ids: String,
     pub sim_vehicle_id: String,
 }
+
 

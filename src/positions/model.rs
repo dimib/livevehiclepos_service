@@ -1,17 +1,6 @@
 use serde::{Serialize, Deserialize};
 
-/**
- [
-  {
-    "lastReceived": "2024-05-17T05:24:40.799Z",
-    "position": {
-      "latitude": 9.98569,
-      "longitude": 53.55017
-    },
-    "vehicleId": "string"
-  }
-]
- */
+#[allow(non_snake_case)]
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct Position {

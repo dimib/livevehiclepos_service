@@ -2,9 +2,9 @@
 
 mod positions;
 mod simulation;
+mod admin;
 
 use simulation::simulation::setup_simulation;
-
 
 #[launch]
 fn rocket() -> _ {
@@ -14,6 +14,9 @@ fn rocket() -> _ {
     rocket::build()
         .mount("/positions", routes![
             positions::service::get_positions
+        ])
+        .mount("/admin", routes![
+            admin::service::reload
         ])
         .register("/", catchers![
             positions::service::not_unauthorized,

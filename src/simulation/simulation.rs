@@ -1,5 +1,5 @@
 
-use crate::simulation::model::{VehiclePositionFile, VehicleIdMappingFile};
+use crate::simulation::model::{VehiclePositionFile, VehicleSimualationFile, VehicleSimulation};
 use crate::positions::model::{Position, PositionData};
 
 use std::fs::File;
@@ -9,23 +9,34 @@ use chrono::DateTime;
 use chrono::offset::Local;
 use chrono::SecondsFormat;
 
-static mut VEHICLE_IDS: Vec<String> = Vec::new();
-static mut SIMULATION_FILES: Vec<VehiclePositionFile> = Vec::new();
-static mut CURRENT_INDEX: Vec<usize> = Vec::new();
+struct SimulationData {
+    vehicle_id: String,
+    simulation_file: VehiclePositionFile,
+    current_index: usize,
+    step: usize,
+}
+
+static mut SIMULATION_DATA: Vec<SimulationData> = Vec::new();
 
 pub fn setup_simulation() {
     unsafe {
-        VEHICLE_IDS.push("23-1".to_string());
-        SIMULATION_FILES.push(load_vehicle_positions("vehicle-23-2.pos.json".to_string()));
-        CURRENT_INDEX.push(0);
+        let simulations = load_simulation_data();
+        for simulation in simulations {
+            let simulation_file = load_vehicle_positions(simulation.pos_file);
+            SIMULATION_DATA.push(SimulationData {
+                vehicle_id: simulation.vehicle_id,
+                simulation_file: simulation_file,
+                current_index: 0,
+                step: simulation.step,
+            });
+        }
+    }
+}
 
-        VEHICLE_IDS.push("23-2".to_string());
-        SIMULATION_FILES.push(load_vehicle_positions("vehicle-23-2.pos.json".to_string()));
-        CURRENT_INDEX.push(0);
-
-        VEHICLE_IDS.push("16-1".to_string());
-        SIMULATION_FILES.push(load_vehicle_positions("vehicle-16-1.pos.json".to_string()));
-        CURRENT_INDEX.push(0);
+pub fn reload_simulation() {
+    unsafe {
+        SIMULATION_DATA.clear();
+        setup_simulation();
     }
 }
 
@@ -34,10 +45,11 @@ pub fn get_next_position(vehicle_id: &String) -> Option<Position> {
         let sim_vehicle_id = get_sim_vehicle_id(vehicle_id.to_string());
         match index_of_vehicle_id(sim_vehicle_id) {
             Some(index) => {
-                let position = &SIMULATION_FILES[index].coords[CURRENT_INDEX[index]];
-                CURRENT_INDEX[index] += 1;
-                if CURRENT_INDEX[index] >= SIMULATION_FILES[index].coords.len() {
-                    CURRENT_INDEX[index] = 0;
+
+                let position = &SIMULATION_DATA[index].simulation_file.coords[SIMULATION_DATA[index].current_index];
+                SIMULATION_DATA[index].current_index += SIMULATION_DATA[index].step;
+                if SIMULATION_DATA[index].current_index >= SIMULATION_DATA[index].simulation_file.coords.len() {
+                    SIMULATION_DATA[index].current_index = 0;
                 }
                 let last_received = DateTime::<Local>::from(Local::now()).to_rfc3339_opts(SecondsFormat::Secs, true);
                 return Some(Position {
@@ -59,7 +71,7 @@ pub fn get_next_position(vehicle_id: &String) -> Option<Position> {
 fn load_vehicle_positions(name: String) -> VehiclePositionFile {
     // Load vehicle positions
     // ...
-    println!("Loading vehicle positions");
+    println!("Loading vehicle positions from file: {}", name);
     let file = File::open(name).expect("File not found");
     let reader = BufReader::new(file);
     let positions: VehiclePositionFile = serde_json::from_reader(reader).expect("Error while reading file");
@@ -68,8 +80,8 @@ fn load_vehicle_positions(name: String) -> VehiclePositionFile {
 
 fn index_of_vehicle_id(vehicle_id: String) -> Option<usize> {
     unsafe {
-        for i in 0..VEHICLE_IDS.len() {
-            if VEHICLE_IDS[i] == vehicle_id {
+        for i in 0..SIMULATION_DATA.len() {
+            if SIMULATION_DATA[i].vehicle_id == vehicle_id {
                 return Some(i);
             }
         }
@@ -80,7 +92,7 @@ fn index_of_vehicle_id(vehicle_id: String) -> Option<usize> {
 fn get_sim_vehicle_id(vehicle_id: String) -> String {
     let file = File::open("sim_vehicle.json").expect("File not found");
     let reader = BufReader::new(file);
-    let mapping_file: VehicleIdMappingFile = serde_json::from_reader(reader).expect("Error while reading file");
+    let mapping_file: VehicleSimualationFile = serde_json::from_reader(reader).expect("Error while reading file");
 
     for mapping in mapping_file.vehicle_id_mapping {
         if mapping.real_vehicle_ids.contains(&vehicle_id) {
@@ -89,5 +101,11 @@ fn get_sim_vehicle_id(vehicle_id: String) -> String {
     }
 
     return vehicle_id.to_string();
-    
+}
+
+fn load_simulation_data() -> Vec<VehicleSimulation> {
+    let file = File::open("sim_vehicle.json").expect("File not found");
+    let reader = BufReader::new(file);
+    let mapping_file: VehicleSimualationFile = serde_json::from_reader(reader).expect("Error while reading file");
+    return mapping_file.vehicle_simulations;
 }

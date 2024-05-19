@@ -5,6 +5,8 @@ use rocket::Request;
 use crate::simulation::simulation::get_next_position;
 use crate::positions::model::Position;
 
+#[allow(non_snake_case)]
+
 #[get("/?<vehicleIds>", format = "json")]
 pub async fn get_positions(vehicleIds: String) -> (Status, Value) {
 
