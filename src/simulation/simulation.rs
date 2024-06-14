@@ -2,8 +2,12 @@
 use crate::simulation::model::{VehiclePositionFile, VehicleSimualationFile, VehicleSimulation};
 use crate::positions::model::{Position, PositionData};
 
+use std::cmp::max;
 use std::fs::File;
 use std::io::BufReader;
+use std::sync::Mutex;
+use std::thread;
+use std::time::Duration;
 
 use chrono::DateTime;
 use chrono::offset::Local;
@@ -14,9 +18,12 @@ struct SimulationData {
     simulation_file: VehiclePositionFile,
     current_index: usize,
     step: usize,
+    current_time: DateTime<Local>,
 }
 
 static mut SIMULATION_DATA: Vec<SimulationData> = Vec::new();
+
+static mut MUTEX: std::sync::Mutex<()> = Mutex::new(());
 
 pub fn setup_simulation() {
     unsafe {
@@ -28,40 +35,85 @@ pub fn setup_simulation() {
                 simulation_file: simulation_file,
                 current_index: 0,
                 step: simulation.step,
+                current_time: DateTime::<Local>::from(Local::now()),
             });
         }
     }
 }
 
+pub fn start_simulator_threads(speed: u64) {
+
+    println!("Starting simulation threads");
+
+    let duration = 1 / max(speed, 1);
+
+    thread::spawn(move || {
+        loop {
+            // Update simulation data
+            // ...
+            // println!("Updating simulation data");
+            thread::sleep(Duration::from_secs(duration));
+            unsafe {
+                match MUTEX.lock() {
+                    Ok(_) => {
+                        for i in 0..SIMULATION_DATA.len() {
+                            SIMULATION_DATA[i].current_index += SIMULATION_DATA[i].step;
+                            if SIMULATION_DATA[i].current_index >= SIMULATION_DATA[i].simulation_file.coords.len() {
+                                SIMULATION_DATA[i].current_index = 0;
+                            }
+                            SIMULATION_DATA[i].current_time = DateTime::<Local>::from(Local::now());
+                        }        
+                    }
+                    Err(_) => {
+                        println!("Mutex is locked");
+                        continue;
+                    }
+                }
+            }
+        }
+    });
+}
+
 pub fn reload_simulation() {
     unsafe {
-        SIMULATION_DATA.clear();
-        setup_simulation();
+        match MUTEX.lock() {
+            Ok(_) => {
+                SIMULATION_DATA.clear();
+                setup_simulation();    
+            }
+            Err(_) => {
+                println!("Mutex is locked");
+            }
+        }
     }
 }
 
 pub fn get_next_position(vehicle_id: &String) -> Option<Position> {
     unsafe {
         let sim_vehicle_id = get_sim_vehicle_id(vehicle_id.to_string());
-        match index_of_vehicle_id(sim_vehicle_id) {
-            Some(index) => {
+        match MUTEX.lock() {
+            Ok(_) => {
+                match index_of_vehicle_id(sim_vehicle_id) {
+                    Some(index) => {
+                        let position = &SIMULATION_DATA[index].simulation_file.coords[SIMULATION_DATA[index].current_index];
+                        let last_received = &SIMULATION_DATA[index].current_time.to_rfc3339_opts(SecondsFormat::Secs, true);
 
-                let position = &SIMULATION_DATA[index].simulation_file.coords[SIMULATION_DATA[index].current_index];
-                SIMULATION_DATA[index].current_index += SIMULATION_DATA[index].step;
-                if SIMULATION_DATA[index].current_index >= SIMULATION_DATA[index].simulation_file.coords.len() {
-                    SIMULATION_DATA[index].current_index = 0;
+                        return Some(Position {
+                            lastReceived: last_received.to_string(),
+                            position: PositionData {
+                                latitude: position.lat,
+                                longitude: position.lon,
+                            },
+                            vehicleId: vehicle_id.to_string(),
+                        });
+                    }
+                    None => {
+                        return None;
+                    }
                 }
-                let last_received = DateTime::<Local>::from(Local::now()).to_rfc3339_opts(SecondsFormat::Secs, true);
-                return Some(Position {
-                    lastReceived: last_received.to_string(),
-                    position: PositionData {
-                        latitude: position.lat,
-                        longitude: position.lon,
-                    },
-                    vehicleId: vehicle_id.to_string(),
-                });
             }
-            None => {
+            Err(_) => {
+                println!("Mutex is locked");
                 return None;
             }
         }
